@@ -1,43 +1,65 @@
 import requests
-import openai
+import streamlit as st
 
-# Set up OpenAI API credentials
-openai.api_key = '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'
+def assess_repository(github_user_url):
+    # Extracting the username from the GitHub URL
+    username = github_user_url.split("/")[-1]
 
-def assess_repository(repository_url):
-    # Fetch the user's repositories from GitHub API
-    response = requests.get(repository_url)
+    # Fetching the user's repositories using the GitHub REST API
+    repositories_url = f"https://api.github.com/users/{username}/repos"
+    response = requests.get(repositories_url)
     repositories = response.json()
 
-    most_complex_repository = None
-    highest_complexity_score = -1
+    # Assessing each repository individually based on complexity
+    most_complex_repo = None
+    highest_complexity_score = float('-inf')
 
-    # Iterate over each repository
-    for repository in repositories:
-        repository_name = repository['name']
-        repository_description = repository['description']
+    for repo in repositories:
+        # Fetching the repository details
+        repo_url = repo['url']
+        response = requests.get(repo_url)
+        repo_details = response.json()
 
-        # Assess repository complexity using GPT and LangChain
-        prompt = f"This repository is named {repository_name}. It is described as: {repository_description}. Please assess its technical complexity."
-        response = openai.Completion.create(
-            engine='text-davinci-003',
-            prompt=prompt,
-            max_tokens=100,
-            n=1,
-            stop=None,
-            temperature=0.7
-        )
+        # Calculating the complexity score based on your desired criteria
+        complexity_score = calculate_complexity_score(repo_details)
 
-        complexity_score = response.choices[0].text.strip()
+        # Updating the most complex repository if necessary
+        if complexity_score > highest_complexity_score:
+            highest_complexity_score = complexity_score
+            most_complex_repo = repo['name']
 
-        # Update the most complex repository if a higher complexity score is found
-        if float(complexity_score) > highest_complexity_score:
-            most_complex_repository = repository_name
-            highest_complexity_score = float(complexity_score)
+    return most_complex_repo
 
-    return most_complex_repository
+def calculate_complexity_score(repo_details):
+    # Calculate the complexity score for the given repository details
+    # You can define your own logic here based on your criteria
 
-# Example usage
-github_user_url = 'https://api.github.com/users/vishnu305/repos'
-most_complex_repo = assess_repository(github_user_url)
-print(f"The most technically complex repository for the user is: {most_complex_repo}")
+    # Example: Calculating the complexity score based on the number of stars
+    return repo_details.get('stargazers_count', 0)
+
+# Streamlit app
+def main():
+    # App title and description
+    st.title("GitHub Repository Complexity Assessment")
+    st.write("Enter a GitHub username to find the most technically complex repository.")
+
+    # User input field
+    github_username = st.text_input("GitHub Username")
+
+    # Button to trigger repository assessment
+    if st.button("Assess Repository"):
+        if github_username:
+            # Call the assess_repository function to get the most complex repository
+            most_complex_repo = assess_repository(f"https://github.com/{github_username}")
+
+            # Display the result
+            if most_complex_repo:
+                st.success(f"The most technically challenging repository of {github_username} is: {most_complex_repo}")
+            else:
+                st.warning(f"No repositories found for {github_username}")
+        else:
+            st.warning("Please enter a GitHub username.")
+
+# Run the Streamlit app
+if __name__ == '__main__':
+    main()
